@@ -1,6 +1,6 @@
 # Telecom Customer Segmentation
 
-Unsupervised behavioral segmentation and supervised rule-based assignment for telecom CVM operations — covering observation-unit design, variable clusterability, iterative profiling, and production deployment.
+A telecom segmentation project showing how unsupervised clustering becomes operationally useful through observation-unit design, variable preparation, iterative profiling, and supervised rule-based assignment.
 
 ## Project Website
 
@@ -8,92 +8,104 @@ Unsupervised behavioral segmentation and supervised rule-based assignment for te
 
 ## Overview
 
-This project delivered a full customer segmentation system for a telecom operator's CVM campaigns.
+This project built a full customer segmentation system for telecom CVM operations.
 
-The main challenge was not the clustering algorithm. It was the series of design decisions before and after:
+The main difficulty was not the clustering algorithm. It was the design decisions that came before and after clustering:
 
-- deciding what one row in the analytical base table should represent
-- making highly skewed behavioral variables compatible with distance-based methods
-- iteratively profiling clusters until they became business-usable segments
-- bridging unsupervised discovery to production-ready supervised assignment
+- defining what one row in the analytical base table should represent
+- preparing variables with extreme skewness for distance-based methods
+- iterating between clustering and business profiling until segments became actionable
+- bridging unsupervised output to a supervised assignment system for new customers
 
-**Target:** 834K prepaid subscribers · **Features:** 174 behavioral variables · **Tools:** SAS, Oracle/Toad, R · **Outcome:** Operational CVM segments with automated new-customer assignment
+The project had two phases: unsupervised discovery first, then supervised classification to assign new customers using interpretable business rules.
+
+## Core Modeling Pattern
+
+Before asking:
+
+- which clustering method to use
+
+the project first asked:
+
+- what should one row represent — a customer or a behavioral state?
+- are the variables even compatible with distance-based clustering?
+- do the resulting clusters make operational sense after profiling?
+- how do we assign new customers who lack enough history for clustering?
+
+This turns segmentation into a multi-stage system:
+
+1. observation-unit design
+2. feature preparation and transformation
+3. variable reduction (shape-based + correlation-based)
+4. clustering with compression
+5. iterative profiling and redesign
+6. supervised rule extraction and business threshold adjustment
 
 ## Architecture
 
 ![Architecture](images/architecture.jpg)
 
-## Core Design Decisions
+<details>
+<summary>📋 View detailed text-based architecture diagram</summary>
 
-### 1. Observation Unit Design
+```text
+  ┌─────────────────────────────────────────────────────┐
+  │  PHASE 1: UNSUPERVISED DISCOVERY                    │
+  └─────────────────────────────────────────────────────┘
 
-The project compared two analytical-table designs:
+  Raw Behavioral History (recharge, voice, data, mobility, network)
+           │
+           ▼
+  Observation Unit Design
+  (one subscriber = one row  OR  one subscriber-month = one row)
+           │
+           ▼
+  Feature Preparation (zero-replacement, capping, per-variable transforms)
+           │
+           ▼
+  Variable Reduction (174 candidates → 49 retained)
+           │
+           ▼
+  Clustering (K-means compression → Hierarchical Ward)
+           │
+           ▼
+  Profiling Loop (represent → cluster → profile → rethink → rebuild)
+           │
+           ▼
+  Operational Segments (Data Addicts, High Consumers, Jeunes, etc.)
 
-| Approach | Row definition | What you segment |
-|----------|---------------|-----------------|
-| A | One subscriber = one row (6-month average) | Customer types |
-| B | One subscriber-month = one row | Behavioral states over time |
+  ┌─────────────────────────────────────────────────────┐
+  │  PHASE 2: SUPERVISED ASSIGNMENT                     │
+  └─────────────────────────────────────────────────────┘
 
-That choice determines whether the business gets stable long-term profiles or detects behavioral transitions.
-
-### 2. Variable Clusterability
-
-174 candidate variables had extreme skewness (up to 40+) and kurtosis (above 1000). Variable-specific transformations were applied:
-
-- **LOG** — moderate skew (ARPM, NB_Comm, NB_CELL)
-- **SQRT** — light skew (NB_JOUR_ACTIVITE, PRCT_4G)
-- **Power ^0.25** — heavy skew (MNT_RECHARGE, revenu_total, VOL_FMS)
-- **EXP** — reverse distributions (MULTISIM, P_FF_Data)
-
-Result: 49 variables retained, 49 rejected — not for correlation, but because no transform could make them behave in a stable distance space.
-
-### 3. Iterative Profiling
-
-Useful segments emerged through repeated cycles:
-
-```
-represent → cluster → profile → rethink → rebuild
-```
-
-Each iteration profiled across: recharge behavior, voice/data mix, handset quality, network usage, region/mobility, CVM response, churn signals.
-
-### 4. Compression Before Structure
-
-- **Stage 1:** K-means with many centers → compress 834K rows to representative centroids
-- **Stage 2:** Hierarchical clustering (Ward) on centroids → find nested segment structure
-
-### 5. Supervised Rule-Based Assignment
-
-After unsupervised discovery, a decision tree was trained on labeled clusters to extract interpretable rules:
-
-```
-Raw tree:    IF ARPU_DATA > 7.34 AND NB_FORFAIT_DATA > 2.17 → "Data Addict"
-Adjusted:    IF ARPU_DATA > 7 DT AND NB_FORFAIT_DATA > 2   → "Data Addict"
+  Decision Tree on Labeled Clusters → Rule Extraction
+           │
+           ▼
+  Business Threshold Adjustment (round, interpret, validate)
+           │
+           ▼
+  Production Assignment (new customers, monthly re-scoring)
 ```
 
-Thresholds were rounded and validated with business teams for:
-- new customer assignment (1-4 months of history)
-- monthly re-scoring
-- CVM campaign targeting without re-running unsupervised pipelines
+</details>
 
-## Key Principles
+## Why this matters
 
-| Principle | Application |
-|-----------|-------------|
-| The unit of analysis is a modeling decision | Customer average vs monthly state |
-| Bad shape kills clustering before redundancy does | Skewness > correlation as variable filter |
-| Profiling is not cleanup — it is the method | Iterative redesign loop |
-| Discovery ≠ Assignment | Unsupervised finds, supervised deploys |
-| Business interpretability > model accuracy | Threshold rounding for CVM teams |
+- shows that segmentation begins at representation design, not at the clustering node
+- demonstrates that variable shape matters more than variable redundancy for distance-based methods
+- treats profiling as part of the method, not as post-hoc cleanup
+- bridges unsupervised discovery to production-ready supervised assignment
+- generalizes to any behavioral segmentation where clusters must become operational
 
-## Generalization
+## Where this pattern generalizes
 
-The same patterns apply in:
-- Banking customers with monthly transaction states
-- E-commerce users with lifecycle behavior changes
-- Subscription products with engagement-state segmentation
+The same principles apply in:
+
+- banking customers with monthly transaction states
+- e-commerce users with lifecycle behavior changes
+- subscription products with engagement-state segmentation
 - IoT device populations with operating-state clustering
-- Any domain where unsupervised discovery must become production assignment
+- any domain where unsupervised discovery must translate into production rules
 
 ## Public Repository Scope
 
