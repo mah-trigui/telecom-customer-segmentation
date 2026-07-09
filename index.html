@@ -1,17 +1,684 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Telecom Customer Segmentation — From Clusters to Operational Segments</title>
   <link rel="stylesheet" href="style.css" />
 </head>
+
+<body>
+  <header class="hero">
+    <div class="container">
+      <h1>The Hardest Segmentation Decision Was Not the Clustering Method</h1>
+      <p class="subtitle">
+        Telecom customer segmentation through observation-unit design, iterative profiling, and supervised rule-based
+        assignment
+      </p>
+      <div class="hero-buttons">
+        <a href="https://github.com/mah-trigui/telecom-customer-segmentation" class="btn primary">View Repository</a>
+        <a href="#overview" class="btn secondary">Explore Method</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- OVERVIEW -->
+    <section class="section" id="overview">
+      <div class="container">
+        <h2>Overview</h2>
+        <p>
+          This project built a full customer segmentation system for telecom CVM operations.
+          It had two phases: unsupervised clustering to discover behavioral segments, then supervised
+          classification to assign new customers to those segments using interpretable business rules.
+        </p>
+        <p>
+          The main challenge was not the clustering algorithm. It was the series of design decisions
+          that came before and after: defining what one row should represent, making variables compatible
+          with distance-based methods, iterating until clusters became operationally meaningful, and
+          bridging the unsupervised output to a production-ready assignment system.
+        </p>
+        <p>
+          The project combined representation design, variable shaping, clustering experimentation,
+          telecom-specific profiling, and supervised rule extraction to produce actionable segment
+          structures rather than just mathematical clusters.
+        </p>
+      </div>
+    </section>
+
+    <!-- ARCHITECTURE -->
+    <section class="section alt">
+      <div class="container">
+        <h2>Architecture</h2>
+        <img src="images/architecture.jpg" alt="Telecom customer segmentation architecture" class="section-image" />
+
+        <details style="margin-top: 30px;">
+          <summary style="cursor: pointer; font-weight: bold; color: #0c5adb; font-size: 1.1rem;">
+            📋 View detailed text-based architecture diagram
+          </summary>
+          <pre style="margin-top: 15px;">
+  ┌─────────────────────────────────────────────────────┐
+  │  PHASE 1: UNSUPERVISED DISCOVERY                    │
+  └─────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────┐
+  │ Raw Telecom Behavioral History              │
+  │ recharge, usage, voice, data, mobility      │
+  │ campaign response, handset, network usage   │
+  └──────────────────────┬──────────────────────┘
+                         │
+                         ▼
+  ┌─────────────────────────────────────────────┐
+  │ Observation Unit Design                     │
+  │ option A: one subscriber = one row          │
+  │ option B: one subscriber-month = one row    │
+  └──────────────────────┬──────────────────────┘
+                         │
+                         ▼
+  ┌─────────────────────────────────────────────┐
+  │ Feature Preparation Layer                   │
+  │ zero-replacement, capping, transforms       │
+  │ skewness / kurtosis filtering               │
+  └──────────────────────┬──────────────────────┘
+                         │
+                         ▼
+  ┌─────────────────────────────────────────────┐
+  │ Variable Reduction                          │
+  │ correlation + domain curation               │
+  │ 174 candidates → 49 retained               │
+  └──────────────────────┬──────────────────────┘
+                         │
+                         ▼
+  ┌─────────────────────────────────────────────┐
+  │ Clustering Layer                            │
+  │ K-means compression → Hierarchical (Ward)   │
+  │ multiple iterations + normalization trials  │
+  └──────────────────────┬──────────────────────┘
+                         │
+                         ▼
+  ┌─────────────────────────────────────────────┐
+  │ Profiling and Redesign Loop                 │
+  │ represent → cluster → profile → rethink     │
+  │ → rebuild (multiple iterations)             │
+  └──────────────────────┬──────────────────────┘
+                         │
+                         ▼
+  ┌─────────────────────────────────────────────┐
+  │ Operational Segments for CVM                │
+  │ Data Addicts, High Consumers, Jeunes,       │
+  │ Old Loyal, MultiSIM, Fragile, etc.          │
+  └──────────────────────┬──────────────────────┘
+                         │
+                         ▼
+  ┌─────────────────────────────────────────────────────┐
+  │  PHASE 2: SUPERVISED ASSIGNMENT                     │
+  └─────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────┐
+  │ Decision Tree on Labeled Clusters           │
+  │ extract splitting rules and thresholds      │
+  └──────────────────────┬──────────────────────┘
+                         │
+                         ▼
+  ┌─────────────────────────────────────────────┐
+  │ Business Threshold Adjustment               │
+  │ round values, ensure interpretability       │
+  │ validate with CVM / marketing teams         │
+  └──────────────────────┬──────────────────────┘
+                         │
+                         ▼
+  ┌─────────────────────────────────────────────┐
+  │ Production Assignment System                │
+  │ score new customers (short history)         │
+  │ monthly re-assignment, stable segment IDs   │
+  └─────────────────────────────────────────────┘
+          </pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- THE CORE IDEA -->
+    <section class="section">
+      <div class="container">
+        <h2>The Core Idea</h2>
+        <p>
+          The first segmentation question was not about the clustering method.
+        </p>
+        <p>
+          It was about a more fundamental design choice: what should one observation represent?
+          Whether the variables can even coexist in a shared distance space?
+          Whether the clusters, once produced, actually mean something to the business?
+          And how to make the segmentation production-ready for customers who arrive after the model was built?
+        </p>
+        <p>
+          Each of these questions required a different type of thinking:
+        </p>
+        <ul class="clean-list">
+          <li><strong>Observation-unit design</strong> — a customer average or a monthly behavioral state</li>
+          <li><strong>Variable clusterability</strong> — making distributions compatible with distance methods</li>
+          <li><strong>Iterative profiling</strong> — turning statistical clusters into business-readable identities</li>
+          <li><strong>Supervised assignment</strong> — bridging unsupervised output to production scoring</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- POST 23: OBSERVATION UNIT -->
+    <section class="section alt" id="observation-unit">
+      <div class="container">
+        <h2>Observation Unit Design</h2>
+        <img src="images/observation_unit.jpg" alt="Observation unit design" class="section-image" />
+        <p>
+          With months of behavioral history per subscriber, the first design question was:
+          what exactly should one row in the analytical base table represent?
+        </p>
+        <p>
+          That question sounds simple. It is not. Because the answer determines what type of
+          segmentation the algorithm can even produce.
+        </p>
+
+        <h3>Two valid approaches</h3>
+        <div class="approach-compare">
+          <div class="approach-box">
+            <h4>Approach A — One Subscriber = One Row</h4>
+            <p>
+              Collapse the behavioral window into one profile per customer:
+              average usage intensity, average recharge frequency, average data consumption.
+            </p>
+            <p><strong>What you segment:</strong> customers as stable entities.</p>
+            <p><strong>Good for:</strong> long-term CVM strategy, structural campaigns, customer typology.</p>
+          </div>
+          <div class="approach-box">
+            <h4>Approach B — One Subscriber-Month = One Row</h4>
+            <p>
+              Keep each monthly snapshot as a separate observation.
+              The same subscriber in March, April, and May becomes three different rows.
+            </p>
+            <p><strong>What you segment:</strong> behavioral states over time.</p>
+            <p><strong>Good for:</strong> detecting transitions, early warning signals, lifecycle modeling.</p>
+          </div>
+        </div>
+
+        <p>
+          That single design decision changes the entire segmentation output.
+          A person-level segmentation produces stable long-term profiles.
+          A month-level segmentation reveals movement: from low usage to activation,
+          from voice-heavy to data-heavy behavior, from engaged to fragile.
+        </p>
+
+        <h3>Selected code: aggregated subscriber behavioral profile</h3>
+        <pre>
+/* Approach A: one subscriber = one row */
+/* Collapse N months into average behavioral profile */
+select subscriber_id,
+       sum(recharge_amount) / history_months       as avg_recharge_amount,
+       sum(recharge_count) / history_months        as avg_recharge_count,
+       sum(recharge_days) / history_months         as avg_recharge_days,
+       sum(weekend_recharge) / history_months      as avg_weekend_recharge,
+       case when sum(recharge_count) > 0
+            then sum(recharge_amount) / sum(recharge_count)
+            else 0 end                             as avg_recharge_value,
+       case when sum(recharge_count) > 0
+            then sum(recharge_days) / total_days_in_window
+            else 0 end                             as recharge_frequency
+from subscriber_recharge_monthly
+group by subscriber_id;
+        </pre>
+
+        <div class="insight-box">
+          <p><strong>Design insight:</strong> The question "which clustering method?" must come after
+            the question "does the business need stable customer types or changing customer states?"
+            The unit of analysis is a modeling decision, not a formatting detail.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- POST 24: ITERATIVE PROFILING -->
+    <section class="section" id="iterative-profiling">
+      <div class="container">
+        <h2>Iterative Profiling and Redesign</h2>
+        <img src="images/iterative_profiling.jpg" alt="Iterative profiling loop" class="section-image" />
+        <p>
+          Useful segments did not emerge from running one clustering method once.
+          The final segmentation came from repeated cycles of representation, clustering,
+          profiling, and redesign.
+        </p>
+        <p>
+          The business cannot act on Cluster 1, Cluster 2, Cluster 3.
+          Operations needs identities it can recognize: young prepaid users, data-heavy consumers,
+          old loyal subscribers, multisim households, fragile low-activity profiles.
+        </p>
+
+        <h3>The iteration loop</h3>
+        <div class="loop-diagram">
+          <span class="loop-step">Represent</span>
+          <span class="loop-arrow">→</span>
+          <span class="loop-step">Cluster</span>
+          <span class="loop-arrow">→</span>
+          <span class="loop-step">Profile</span>
+          <span class="loop-arrow">→</span>
+          <span class="loop-step">Rethink</span>
+          <span class="loop-arrow">→</span>
+          <span class="loop-step">Rebuild</span>
+        </div>
+
+        <p>
+          Some iterations were statistically acceptable but not operationally useful.
+          Others looked clean mathematically but grouped customers in ways that business teams
+          could not act on. The loop continued until segments became recognizable and targetable.
+        </p>
+
+        <h3>Profiling dimensions per iteration</h3>
+        <ul class="clean-list">
+          <li><strong>Recharge behavior</strong> — frequency, regularity, weekend patterns, top-up value distribution
+          </li>
+          <li><strong>Voice vs data mix</strong> — usage intensity by service type, on-net vs off-net split</li>
+          <li><strong>Handset quality</strong> — 2G / 3G / 4G device capability, device change frequency</li>
+          <li><strong>Network community</strong> — graph degree, community size, operator mix in social group</li>
+          <li><strong>Region and mobility</strong> — geographic footprint, number of distinct cell towers visited</li>
+          <li><strong>CVM response</strong> — campaign sensitivity, offer activation behavior, response to promotions
+          </li>
+          <li><strong>Churn signals</strong> — inactivity days, declining usage trends, recharge evaporation patterns
+          </li>
+        </ul>
+
+        <h3>Selected code: profiling segment behavior</h3>
+        <pre>
+/* Profile each segment across key behavioral dimensions */
+select segment_id,
+       count(distinct subscriber_id)       as segment_size,
+       avg(recharge_amount)                as avg_recharge,
+       avg(total_voice_duration)           as avg_voice_minutes,
+       avg(data_volume)                    as avg_data_volume,
+       avg(data_pack_count)                as avg_data_packs,
+       avg(active_days)                    as avg_active_days,
+       avg(distinct_cell_towers)           as avg_mobility,
+       avg(community_degree)              as avg_graph_degree
+from segmented_subscriber_table
+group by segment_id;
+
+/* Cross-tabulation: handset type distribution per segment */
+select handset_generation,
+       count(case when segment_id = 1 then subscriber_id end) as seg_1,
+       count(case when segment_id = 2 then subscriber_id end) as seg_2,
+       count(case when segment_id = 3 then subscriber_id end) as seg_3,
+       count(case when segment_id = 4 then subscriber_id end) as seg_4
+from segmented_subscriber_table
+group by handset_generation;
+        </pre>
+
+        <div class="insight-box">
+          <p><strong>Design insight:</strong> Unlike supervised learning, there is no target variable to
+            tell you whether the representation is right. Good segmentation is designed through iteration.
+            The iteration is not optional — it is the method.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- POST 25: VARIABLE CLUSTERABILITY -->
+    <section class="section alt" id="variable-clusterability">
+      <div class="container">
+        <h2>Variable Clusterability</h2>
+        <img src="images/variable_clusterability.jpg" alt="Variable transformation for clustering"
+          class="section-image" />
+        <p>
+          The raw feature space had extreme distributions.
+          Some variables were not just skewed — they were wildly skewed.
+          A few had long tails so extreme that standard scaling alone would make the
+          distance geometry unstable.
+        </p>
+        <p>
+          So before reducing redundancy, the project had to answer a more basic question:
+          <strong>can these variables even live in the same clustering space?</strong>
+        </p>
+
+        <h3>The problem: incompatible distributions</h3>
+        <ul class="clean-list">
+          <li>Recharge variables with skewness above 5</li>
+          <li>Voice duration variables with skewness above 8</li>
+          <li>Off-net usage with skewness above 40</li>
+          <li>Some internet volume variables with kurtosis above 1000</li>
+        </ul>
+
+        <h3>Variable-specific transformation strategy</h3>
+        <div class="transform-grid">
+          <div class="transform-card">
+            <h4>LOG</h4>
+            <p>Moderate skew (1–3)</p>
+            <p class="example">Applied to: avg call duration, community size, cell tower count, SMS volume, internet app
+              usage</p>
+          </div>
+          <div class="transform-card">
+            <h4>SQRT</h4>
+            <p>Light skew</p>
+            <p class="example">Applied to: active days ratio, 4G usage percentage, off-net duration share, data sharing
+              percentage</p>
+          </div>
+          <div class="transform-card">
+            <h4>Power ^0.25</h4>
+            <p>Heavy skew (5+)</p>
+            <p class="example">Applied to: recharge amount, total revenue, competitor-network duration, total data
+              volume</p>
+          </div>
+          <div class="transform-card">
+            <h4>EXP</h4>
+            <p>Reverse / compressed</p>
+            <p class="example">Applied to: multi-SIM flag, data pack percentage, 3G usage percentage</p>
+          </div>
+        </div>
+
+        <h3>Selected code: transformation pipeline output</h3>
+        <pre>
+/* Transformations applied per variable (automated pipeline output) */
+/* Each variable gets the transform best suited to its distribution */
+
+recharge_amount:             power_transform  → (max(value, 0) / scale_factor) ^ 0.25
+avg_call_duration:           log_transform    → log(max(value, 0) / scale_factor + 1)
+community_size:              log_transform    → log(max(value, 0) / scale_factor + 1)
+active_days_ratio:           sqrt_transform   → sqrt(max(value, 0) / scale_factor)
+four_g_usage_pct:            sqrt_transform   → sqrt(max(value, 0) / scale_factor)
+offnet_duration_share:       sqrt_transform   → sqrt(max(value, 0) / scale_factor)
+total_data_volume:           power_transform  → (max(value, 0) / scale_factor) ^ 0.25
+multi_sim_indicator:         exp_transform    → exp(max(value, 0))
+data_pack_pct:               exp_transform    → exp(max(value, 0))
+
+/* Pipeline summary */
+/* Input:    174 candidate variables                           */
+/* Retained: 49 variables (transformable + stable shape)       */
+/* Rejected: 49 variables (no transform achieved stable shape) */
+/* Rejection reason: distributional shape, not correlation     */
+        </pre>
+
+        <p>
+          The result: skewness killed more variables than correlation did.
+          Many features were not removed because they duplicated information —
+          they were removed because no transformation could make them behave
+          well enough for distance-based clustering.
+        </p>
+
+        <div class="insight-box">
+          <p><strong>Design insight:</strong> In distance-based unsupervised learning,
+            bad variable shape is often a bigger problem than variable redundancy.
+            Before asking whether two variables are too similar, make sure each one
+            is even representable in a stable distance space.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- POST 26: COMPRESSION LAYER -->
+    <section class="section" id="compression-layer">
+      <div class="container">
+        <h2>Compression Before Structure</h2>
+        <img src="images/compression_layer.jpg" alt="K-means compression before hierarchical clustering"
+          class="section-image" />
+        <p>
+          With hundreds of thousands of subscribers, hierarchical clustering cannot run directly.
+          Its complexity is quadratic — it would require computing all pairwise distances.
+        </p>
+        <p>
+          K-means scales linearly, but used alone it can flatten nested structure.
+          It finds compact groups, but misses the hierarchical relationships between them.
+        </p>
+        <p>
+          The practical solution: use both algorithms in sequence, where K-means acts as a
+          compression layer — not as the final segmentation.
+        </p>
+
+        <h3>Two-stage pipeline</h3>
+        <div class="approach-compare">
+          <div class="approach-box">
+            <h4>Stage 1: K-Means Compression</h4>
+            <p>
+              Compress the full subscriber base into many representative centroids.
+              Fast, scalable, captures local density patterns.
+              Each centroid represents a group of behaviorally similar customers.
+            </p>
+          </div>
+          <div class="approach-box">
+            <h4>Stage 2: Hierarchical Clustering (Ward)</h4>
+            <p>
+              Run Ward's method on the centroids.
+              Finds nested structure, natural segment boundaries, and the optimal number of clusters.
+              Produces a dendrogram for visual interpretation.
+            </p>
+          </div>
+        </div>
+
+        <h3>Selected code: two-stage clustering</h3>
+        <pre>
+/* Stage 1: K-means compression */
+/* Reduce full subscriber base to representative centroids */
+proc fastclus data=normalized_subscriber_features
+     maxclusters=1000
+     out=compressed_centroids;
+  var feature_1 - feature_49;
+run;
+
+/* Stage 2: Hierarchical clustering on centroids */
+/* Find nested structure using Ward's minimum variance method */
+proc cluster data=compressed_centroids
+     method=ward
+     outtree=dendrogram_output;
+  var feature_1 - feature_49;
+run;
+
+/* Cut dendrogram at chosen level */
+proc tree data=dendrogram_output
+     nclusters=8
+     out=final_segment_assignment;
+run;
+        </pre>
+
+        <div class="insight-box">
+          <p><strong>Design insight:</strong> The first algorithm is not the segmenter — it is the reducer.
+            In large-scale unsupervised systems, one algorithm can serve as a modeling layer for another,
+            not only as the final answer.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- POST 27: SUPERVISED ASSIGNMENT -->
+    <section class="section alt" id="supervised-assignment">
+      <div class="container">
+        <h2>Supervised Rule-Based Assignment</h2>
+        <img src="images/supervised_assignment.jpg" alt="Supervised rule extraction and assignment"
+          class="section-image" />
+        <p>
+          The unsupervised phase gave meaningful clusters. But clusters alone cannot
+          operationally assign new customers.
+        </p>
+        <p>
+          A subscriber who activated last month has only one or two months of history.
+          The unsupervised model was built on a longer behavioral window.
+          You cannot cluster new customers the same way.
+        </p>
+        <p>
+          So the supervised phase had a different goal: extract interpretable assignment
+          rules from existing clusters, adjust thresholds with business logic, and apply
+          them to new customers as a production scoring system.
+        </p>
+
+        <h3>The bridge: from clusters to rules</h3>
+        <div class="transform-grid">
+          <div class="transform-card">
+            <h4>1. Label</h4>
+            <p>Assign unsupervised segment identities to existing customers as a supervised target variable.</p>
+          </div>
+          <div class="transform-card">
+            <h4>2. Train</h4>
+            <p>Fit decision tree on the labeled data. Compare with neural network and regression as benchmarks.</p>
+          </div>
+          <div class="transform-card">
+            <h4>3. Extract</h4>
+            <p>From the decision tree: extract splitting rules with variable conditions and thresholds.</p>
+          </div>
+          <div class="transform-card">
+            <h4>4. Adjust</h4>
+            <p>Round thresholds to business-meaningful values. Validate with CVM and marketing teams.</p>
+          </div>
+        </div>
+
+        <h3>Why thresholds need business adjustment</h3>
+        <p>
+          A raw decision tree produces optimal splits — but those splits are often unreadable
+          for business teams. The thresholds are precise numbers with no intuitive meaning.
+        </p>
+        <p>
+          So the extracted rules were adjusted: values rounded to interpretable levels,
+          conditions simplified to match business vocabulary, edge cases validated with domain experts.
+        </p>
+        <pre>
+/* Example: raw tree output vs business-adjusted rule */
+
+/* Raw decision tree split: */
+if data_revenue_ratio > 0.734
+   and data_pack_frequency > 2.17
+   and voice_duration_share < 0.412
+   then assign → "Data Intensive"
+
+/* Business-adjusted assignment rule: */
+if data_revenue_ratio > 0.70
+   and data_pack_frequency > 2
+   and voice_duration_share < 0.45
+   then assign → "Data Intensive"
+
+/* Consequence:
+   Original unsupervised cluster: ~100K members
+   Rule-based assignment on full base: may capture 90K or 110K
+   Acceptable — goal is stability and interpretability, not exact replication */
+        </pre>
+
+        <h3>Selected code: building supervised features for new customers</h3>
+        <pre>
+/* New subscribers: activated in last 1-4 months */
+/* Build behavioral features with available (shorter) history */
+select subscriber_id,
+       subscriber_tenure_months,
+       handset_generation,
+       avg(recharge_amount)       as avg_recharge,
+       avg(voice_duration)        as avg_voice_duration,
+       avg(data_pack_count)       as avg_data_packs,
+       avg(active_days)           as avg_active_days,
+       avg(offnet_voice_share)    as avg_offnet_share
+from new_subscriber_behavior
+where activation_date > cutoff_date
+group by subscriber_id, subscriber_tenure_months, handset_generation;
+
+/* Apply business rules for segment assignment */
+/* Monthly re-scoring without re-running unsupervised pipeline */
+        </pre>
+
+        <h3>Models compared during supervised phase</h3>
+        <ul class="clean-list">
+          <li><strong>Decision Tree</strong> — primary choice for rule extraction and interpretability</li>
+          <li><strong>Neural Network</strong> — higher accuracy but black-box, used as accuracy benchmark</li>
+          <li><strong>Logistic Regression</strong> — baseline interpretable classifier</li>
+          <li><strong>Gradient Boosting</strong> — ensemble accuracy benchmark</li>
+        </ul>
+
+        <div class="insight-box">
+          <p><strong>Design insight:</strong> Discovery is unsupervised. Assignment is supervised.
+            The bridge between them is rule extraction with business-adjusted thresholds.
+            The model that assigns customers is not the model that discovered the segments.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- WHY THIS MATTERS -->
+    <section class="section">
+      <div class="container">
+        <h2>Why this matters</h2>
+        <ul class="clean-list">
+          <li>Shows that segmentation begins at representation design, not at the clustering node</li>
+          <li>Demonstrates that variable shape matters more than variable redundancy for distance-based methods</li>
+          <li>Treats profiling as part of the method — not as post-hoc cleanup after clustering</li>
+          <li>Avoids treating one algorithm as the full answer — uses K-means as a layer, not an endpoint</li>
+          <li>Bridges unsupervised discovery to production-ready supervised assignment</li>
+          <li>Produces segments the business can recognize, trust, and act on without re-running the pipeline</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- GENERALIZATION -->
+    <section class="section alt">
+      <div class="container">
+        <h2>Where this pattern generalizes</h2>
+        <p>
+          The same design principles apply in many segmentation settings:
+        </p>
+        <ul class="clean-list">
+          <li>Banking customers with monthly transaction states</li>
+          <li>E-commerce users with lifecycle behavior changes</li>
+          <li>Subscription products with engagement-state segmentation</li>
+          <li>IoT device populations with operating-state clustering</li>
+          <li>Any domain where unsupervised discovery must translate into production assignment rules</li>
+        </ul>
+        <p>
+          The reusable pattern: before clustering entities, decide whether you are clustering people,
+          states, or transitions. Then bridge from discovery to operational rules.
+        </p>
+      </div>
+    </section>
+
+    <!-- KEY TAKEAWAY -->
+    <section class="section">
+      <div class="container">
+        <h2>Key Takeaway</h2>
+        <div class="insight-box">
+          <p><strong>The hardest segmentation decision was not the clustering method.</strong></p>
+          <p>
+            It was defining what one row should represent, making the variables clusterable,
+            iterating until clusters became operational segments, and then bridging unsupervised
+            discovery to supervised rule-based assignment for production use.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PUBLIC SCOPE -->
+    <section class="section alt">
+      <div class="container">
+        <h2>Public Repository Scope</h2>
+        <p>
+          This public version shares the segmentation architecture, methodological framing,
+          selected pseudocode, and project presentation. Raw telecom data, confidential schemas,
+          monetary values, and production identifiers are not included.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>Built as a public project showcase in telecom customer segmentation, unsupervised learning, iterative
+        profiling, and supervised assignment design.</p>
+      <p style="margin-top: 10px; opacity: 0.7;">
+        <a href="https://mahmoud-trigui.netlify.app/"
+          style="color: #a8d4ff; text-decoration: none;">mahmoud-trigui.netlify.app</a>
+      </p>
+    </div>
+  </footer>
+</body>
+
+</html>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telecom Customer Segmentation — From Clusters to Operational Segments</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
 <body>
   <header class="hero">
     <div class="container">
       <h1>Telecom Customer Segmentation</h1>
       <p class="subtitle">
-        From observation-unit design through unsupervised clustering to supervised rule-based assignment — a full CVM segmentation pipeline
+        From observation-unit design through unsupervised clustering to supervised rule-based assignment — a full CVM
+        segmentation pipeline
       </p>
       <div class="hero-buttons">
         <a href="https://github.com/mah-trigui/telecom-customer-segmentation" class="btn primary">View Repository</a>
@@ -50,7 +717,8 @@
     <section class="section alt">
       <div class="container">
         <h2>Architecture</h2>
-        <img src="images/architecture.jpg" alt="Telecom customer segmentation architecture" class="architecture-image" />
+        <img src="images/architecture.jpg" alt="Telecom customer segmentation architecture"
+          class="architecture-image" />
 
         <details style="margin-top: 30px;">
           <summary style="cursor: pointer; font-weight: bold; color: #0c5adb; font-size: 1.1rem;">
@@ -141,7 +809,8 @@
     <section class="section" id="observation-unit">
       <div class="container">
         <h2>1. Observation Unit Design</h2>
-        <p class="section-hook">The hardest segmentation decision was not the clustering method. It was deciding what one row should represent.</p>
+        <p class="section-hook">The hardest segmentation decision was not the clustering method. It was deciding what
+          one row should represent.</p>
         <p>
           With months of behavioral history per subscriber, the first design question was:
           what exactly should one row in the analytical base table represent?
@@ -188,7 +857,7 @@ GROUP BY subscrp_id;
         </pre>
         <div class="metric-box">
           <p><strong>Key insight:</strong> Does the business need stable customer types, or changing customer states?
-          That question must be answered before any clustering method is chosen.</p>
+            That question must be answered before any clustering method is chosen.</p>
         </div>
       </div>
     </section>
@@ -197,7 +866,8 @@ GROUP BY subscrp_id;
     <section class="section alt" id="iterative-profiling">
       <div class="container">
         <h2>2. Iterative Profiling Loop</h2>
-        <p class="section-hook">A cluster is useless until an iterative loop of profiling and redesign turns it into an operational segment.</p>
+        <p class="section-hook">A cluster is useless until an iterative loop of profiling and redesign turns it into an
+          operational segment.</p>
         <p>
           Useful clusters did not emerge from running one method once. The final segmentation came from
           repeated cycles of representation, clustering, profiling, and redesign.
@@ -248,7 +918,8 @@ GROUP BY handset;
         </pre>
         <div class="metric-box">
           <p><strong>Key insight:</strong> Unlike supervised learning, there is no target variable to tell you
-          whether the representation is right. Good segmentation is designed through iteration — the iteration is the method.</p>
+            whether the representation is right. Good segmentation is designed through iteration — the iteration is the
+            method.</p>
         </div>
       </div>
     </section>
@@ -306,7 +977,7 @@ REP_IMP_MULTISIM:           EXP  → exp(max(val - 0))
         </pre>
         <div class="metric-box">
           <p><strong>Key insight:</strong> Skewness killed more variables than correlation did.
-          In distance-based unsupervised learning, bad variable shape is often a bigger problem than redundancy.</p>
+            In distance-based unsupervised learning, bad variable shape is often a bigger problem than redundancy.</p>
         </div>
       </div>
     </section>
@@ -357,7 +1028,7 @@ RUN;
         </pre>
         <div class="metric-box">
           <p><strong>Key insight:</strong> The first algorithm is not the segmenter — it is the reducer.
-          In large unsupervised systems, one algorithm can serve as a modeling layer for another.</p>
+            In large unsupervised systems, one algorithm can serve as a modeling layer for another.</p>
         </div>
       </div>
     </section>
@@ -366,7 +1037,8 @@ RUN;
     <section class="section" id="supervised-assignment">
       <div class="container">
         <h2>5. Supervised Rule-Based Assignment</h2>
-        <p class="section-hook">The decision tree was not the model. It was the rule-extraction layer between unsupervised clusters and business operations.</p>
+        <p class="section-hook">The decision tree was not the model. It was the rule-extraction layer between
+          unsupervised clusters and business operations.</p>
         <p>
           The unsupervised phase gave meaningful clusters — but clusters alone cannot assign new customers.
           A subscriber who activated last month has only 1-2 months of history.
@@ -436,8 +1108,8 @@ WHERE SUBSCRP_STATUS_CD IN ('A','S')
         </ul>
         <div class="metric-box">
           <p><strong>Key insight:</strong> Discovery is unsupervised. Assignment is supervised.
-          The bridge between them is rule extraction with business-adjusted thresholds.
-          The model that assigns is not the model that discovered.</p>
+            The bridge between them is rule extraction with business-adjusted thresholds.
+            The model that assigns is not the model that discovered.</p>
         </div>
       </div>
     </section>
@@ -454,7 +1126,8 @@ WHERE SUBSCRP_STATUS_CD IN ('A','S')
           <li>Any domain where unsupervised discovery must become production assignment</li>
         </ul>
         <p>
-          The reusable pattern: before clustering entities, decide whether you are clustering people, states, or transitions.
+          The reusable pattern: before clustering entities, decide whether you are clustering people, states, or
+          transitions.
           Then bridge from discovery to operational rules.
         </p>
       </div>
@@ -489,11 +1162,13 @@ WHERE SUBSCRP_STATUS_CD IN ('A','S')
 
   <footer class="footer">
     <div class="container">
-      <p>Telecom customer segmentation: unsupervised clustering, iterative profiling, variable preparation, and supervised rule-based assignment for CVM operations.</p>
+      <p>Telecom customer segmentation: unsupervised clustering, iterative profiling, variable preparation, and
+        supervised rule-based assignment for CVM operations.</p>
       <p style="margin-top: 10px; opacity: 0.7;">
         <a href="https://mahmoud-trigui.netlify.app/" style="color: white;">mahmoud-trigui.netlify.app</a>
       </p>
     </div>
   </footer>
 </body>
+
 </html>
