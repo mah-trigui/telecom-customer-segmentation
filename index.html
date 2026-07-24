@@ -532,20 +532,20 @@ run;
 /* Example: raw tree output vs business-adjusted rule */
 
 /* Raw decision tree split: */
-if data_revenue_ratio > 0.734
-   and data_pack_frequency > 2.17
-   and voice_duration_share < 0.412
+if data_revenue_ratio > 
+   and data_pack_frequency > 
+   and voice_duration_share < 
    then assign → "Data Intensive"
 
 /* Business-adjusted assignment rule: */
-if data_revenue_ratio > 0.70
-   and data_pack_frequency > 2
-   and voice_duration_share < 0.45
+if data_revenue_ratio > 
+   and data_pack_frequency > 
+   and voice_duration_share < 
    then assign → "Data Intensive"
 
 /* Consequence:
-   Original unsupervised cluster: ~100K members
-   Rule-based assignment on full base: may capture 90K or 110K
+   Original unsupervised cluster: ~K members
+   Rule-based assignment on full base: may capture K or K
    Acceptable — goal is stability and interpretability, not exact replication */
         </pre>
 
